@@ -203,7 +203,62 @@ async function runProductionTests() {
     return `Studio Projects: ${res.data.totalStudioProjects}, Production Projects: ${res.data.totalProductionProjects}`;
   });
 
-  // 11. Cloudflare B2 Storage Status
+  // 11. Admin CRUD Operations (Create, Read, Update, Delete)
+  let crudServiceId = '';
+  await test('Admin CRUD: POST /api/services (Create Service)', async () => {
+    const res = await request('/api/services', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: {
+        name: 'Deployment Verification Service',
+        division: 'STUDIO',
+        category: 'Web and Software Development',
+        description: 'Automated test service to verify Admin CRUD pipelines on Vercel.',
+        icon: 'Cpu',
+        display_order: 999
+      }
+    });
+    if (res.status !== 201 && res.status !== 200) {
+      throw new Error(`Failed to create service: ${res.status} ${JSON.stringify(res.data)}`);
+    }
+    crudServiceId = res.data?.id;
+    if (!crudServiceId) throw new Error('No service ID returned in creation');
+    return `Created service ID: ${crudServiceId} ("${res.data.name}")`;
+  });
+
+  await test(`Admin CRUD: PUT /api/services/${crudServiceId} (Update Service)`, async () => {
+    const res = await request(`/api/services/${crudServiceId}`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${adminToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: {
+        name: 'Deployment Verification Service (Updated)',
+        description: 'Updated description for CRUD verification on production.'
+      }
+    });
+    if (res.status !== 200) {
+      throw new Error(`Failed to update service: ${res.status} ${JSON.stringify(res.data)}`);
+    }
+    return `Updated service name to: "${res.data.name}"`;
+  });
+
+  await test(`Admin CRUD: DELETE /api/services/${crudServiceId} (Delete Service)`, async () => {
+    const res = await request(`/api/services/${crudServiceId}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${adminToken}` }
+    });
+    if (res.status !== 200) {
+      throw new Error(`Failed to delete service: ${res.status} ${JSON.stringify(res.data)}`);
+    }
+    return `Deleted service ID: ${crudServiceId}`;
+  });
+
+  // 12. Cloudflare B2 Storage Status
   await test('GET /api/media/status (Cloudflare B2 Status)', async () => {
     const res = await request('/api/media/status', {
       headers: { 'Authorization': `Bearer ${adminToken}` }
