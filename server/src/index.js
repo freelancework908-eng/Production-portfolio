@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 
 import { initDatabase, db } from './db/index.js';
+import { verifyTiDBConnection } from './db/connection.js';
 import authRoutes from './routes/auth.js';
 import servicesRoutes from './routes/services.js';
 import projectsRoutes from './routes/projects.js';
@@ -32,8 +33,55 @@ initDatabase().catch(err => {
   console.error('Database initialization error:', err);
 });
 
-// Middleware
-app.use(cors());
+// CORS Configuration
+const allowedOrigins = [
+  'https://production-portfolio-sigma.vercel.app',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+  'http://localhost:5000',
+  'http://127.0.0.1:5000'
+];
+
+if (process.env.CORS_ORIGIN) {
+  process.env.CORS_ORIGIN.split(',').forEach(o => {
+    const trimmed = o.trim();
+    if (trimmed && !allowedOrigins.includes(trimmed)) {
+      allowedOrigins.push(trimmed);
+    }
+  });
+}
+if (process.env.FRONTEND_URL) {
+  process.env.FRONTEND_URL.split(',').forEach(o => {
+    const trimmed = o.trim();
+    if (trimmed && !allowedOrigins.includes(trimmed)) {
+      allowedOrigins.push(trimmed);
+    }
+  });
+}
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser requests (mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    // Allow Vercel preview deployment origins for this project
+    if (/^https:\/\/production-portfolio(-[a-z0-9-]+)?\.vercel\.app$/.test(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Origin ${origin} not allowed by CORS`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Range', 'Accept'],
+  exposedHeaders: ['Content-Range', 'Accept-Ranges', 'Content-Length']
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -58,13 +106,77 @@ app.use('/api/testimonials', testimonialsRoutes);
 app.use('/api/banners', bannersRoutes);
 app.use('/api/navigation', navigationRoutes);
 
-// Health check
-app.get('/api/health', (req, res) => {
+// Root Route (Prevents "Cannot GET /" or 404 on backend root)
+app.get('/', (req, res) => {
   res.json({
     status: 'online',
-    identity: 'SUPERWAY · Studio & Production API',
+    app: 'SUPERWAY · Studio & Production API',
+    version: '1.0.0',
+    environment: process.env.NODE_ENV || 'production',
+    message: 'Welcome to the Superway Studio & Production API service.',
+    endpoints: {
+      health: '/api/health',
+      services: '/api/services',
+      projects: '/api/projects',
+      gallery: '/api/gallery',
+      settings: '/api/settings',
+      media: '/api/media',
+      clients: '/api/clients',
+      testimonials: '/api/testimonials',
+      banners: '/api/banners',
+      navigation: '/api/navigation',
+      auth: '/api/auth'
+    }
+  });
+});
+
+// Comprehensive Health check
+app.get('/api/health', async (req, res) => {
+  let dbStatus = {
+    status: 'disconnected',
+    type: 'none',
+    connected: false
+  };
+
+  try {
+    const tidbCheck = await verifyTiDBConnection();
+    if (tidbCheck.connected && tidbCheck.alive) {
+      dbStatus = {
+        status: 'connected',
+        type: 'TiDB Cloud',
+        connected: true
+      };
+    } else if (tidbCheck.reason === 'NO_REMOTE_CONFIG') {
+      dbStatus = {
+        status: 'local_fallback',
+        type: 'file_backed_store',
+        connected: true,
+        note: 'Operating on standalone relational store'
+      };
+    } else {
+      dbStatus = {
+        status: 'error',
+        type: 'TiDB Cloud',
+        connected: false,
+        error: tidbCheck.reason || 'Database verification failed'
+      };
+    }
+  } catch (err) {
+    dbStatus = {
+      status: 'error',
+      type: 'unknown',
+      connected: false,
+      error: 'Database check failed'
+    };
+  }
+
+  res.status(200).json({
+    status: 'online',
+    app: 'SUPERWAY · Studio & Production API',
+    environment: process.env.NODE_ENV || 'production',
+    timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    timestamp: new Date().toISOString()
+    database: dbStatus
   });
 });
 
@@ -122,8 +234,8 @@ process.on('uncaughtException', (err) => {
   console.error('[SUPERWAY API] Uncaught Exception:', err);
 });
 
-// Start listening if executed directly
-if (process.env.NODE_ENV !== 'test') {
+// Start listening if executed directly (and not in Vercel serverless environment)
+if (process.env.NODE_ENV !== 'test' && !process.env.VERCEL) {
   const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`[SUPERWAY API] Running on port ${PORT} (http://127.0.0.1:${PORT})`);
   });

@@ -18,7 +18,16 @@ import {
   SEOSettings
 } from '../types';
 
-const API_BASE = '/api';
+const getApiBaseUrl = (): string => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (!envUrl) {
+    return '/api';
+  }
+  const cleanUrl = envUrl.trim().replace(/\/+$/, '');
+  return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
+};
+
+const API_BASE = getApiBaseUrl();
 
 function getAuthHeaders(): HeadersInit {
   const token = localStorage.getItem('arjun_dev_token');

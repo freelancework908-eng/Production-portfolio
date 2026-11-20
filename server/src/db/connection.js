@@ -34,11 +34,11 @@ export function getDatabaseConfig() {
     }
   }
 
-  const host = process.env.TIDB_HOST || process.env.MYSQL_HOST;
-  const user = process.env.TIDB_USER || process.env.MYSQL_USER;
-  const password = process.env.TIDB_PASSWORD || process.env.MYSQL_PASSWORD;
-  const database = process.env.TIDB_DATABASE || process.env.MYSQL_DATABASE || 'portfolio';
-  const port = Number(process.env.TIDB_PORT || process.env.MYSQL_PORT) || 4000;
+  const host = process.env.TIDB_HOST || process.env.DB_HOST || process.env.MYSQL_HOST;
+  const user = process.env.TIDB_USER || process.env.DB_USER || process.env.MYSQL_USER;
+  const password = process.env.TIDB_PASSWORD || process.env.DB_PASSWORD || process.env.MYSQL_PASSWORD;
+  const database = process.env.TIDB_DATABASE || process.env.DB_NAME || process.env.MYSQL_DATABASE || 'portfolio';
+  const port = Number(process.env.TIDB_PORT || process.env.DB_PORT || process.env.MYSQL_PORT) || 4000;
 
   if (host && user) {
     return {
@@ -49,9 +49,9 @@ export function getDatabaseConfig() {
       database,
       ssl: {
         minVersion: 'TLSv1.2',
-        rejectUnauthorized: true
+        rejectUnauthorized: process.env.TIDB_REJECT_UNAUTHORIZED !== 'false'
       },
-      connectionLimit: 10,
+      connectionLimit: 5,
       waitForConnections: true,
       queueLimit: 0,
       enableKeepAlive: true,

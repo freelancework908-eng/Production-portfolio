@@ -15,18 +15,23 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// B2 Configuration
-const B2_KEY_ID = process.env.B2_KEY_ID;
-const B2_APPLICATION_KEY = process.env.B2_APPLICATION_KEY;
-const B2_BUCKET_NAME = process.env.B2_BUCKET_NAME;
-const B2_ENDPOINT = process.env.B2_ENDPOINT || 'https://s3.us-east-005.backblazeb2.com';
-const B2_REGION = process.env.B2_REGION || 'us-east-005';
-const B2_PUBLIC_URL = process.env.B2_PUBLIC_URL; // Optional Cloudflare CDN / custom domain
+// B2 Configuration Helper
+export function getB2Config() {
+  return {
+    keyId: process.env.B2_KEY_ID || process.env.B2_APPLICATION_KEY_ID,
+    appKey: process.env.B2_APPLICATION_KEY,
+    bucketName: process.env.B2_BUCKET_NAME,
+    endpoint: process.env.B2_ENDPOINT || 'https://s3.us-east-005.backblazeb2.com',
+    region: process.env.B2_REGION || 'us-east-005',
+    publicUrl: process.env.B2_PUBLIC_URL // Optional Cloudflare CDN / custom domain
+  };
+}
 
 let s3Client = null;
 
 export function isB2Configured() {
-  return Boolean(B2_KEY_ID && B2_APPLICATION_KEY && B2_BUCKET_NAME);
+  const config = getB2Config();
+  return Boolean(config.keyId && config.appKey && config.bucketName);
 }
 
 export function getS3Client() {
@@ -36,19 +41,20 @@ export function getS3Client() {
     return null;
   }
 
-  const endpointUrl = B2_ENDPOINT.startsWith('http') ? B2_ENDPOINT : `https://${B2_ENDPOINT}`;
+  const config = getB2Config();
+  const endpointUrl = config.endpoint.startsWith('http') ? config.endpoint : `https://${config.endpoint}`;
 
   s3Client = new S3Client({
-    region: B2_REGION,
+    region: config.region,
     endpoint: endpointUrl,
     credentials: {
-      accessKeyId: B2_KEY_ID,
-      secretAccessKey: B2_APPLICATION_KEY
+      accessKeyId: config.keyId,
+      secretAccessKey: config.appKey
     },
     forcePathStyle: true // Needed for Backblaze B2 S3 API compatibility
   });
 
-  console.log(`[Cloudflare B2] S3 Client initialized for bucket "${B2_BUCKET_NAME}" at ${endpointUrl}`);
+  console.log(`[Cloudflare B2] S3 Client initialized for bucket "${config.bucketName}" at ${endpointUrl}`);
   return s3Client;
 }
 
@@ -137,11 +143,12 @@ export async function uploadToStorage({ buffer, originalname, mimetype, size, ca
 
   // 1. Genuine Cloudflare B2 Storage
   if (client && isB2Configured()) {
+    const config = getB2Config();
     try {
-      console.log(`[Cloudflare B2] Uploading "${objectKey}" (${formattedSize}) to bucket "${B2_BUCKET_NAME}"...`);
+      console.log(`[Cloudflare B2] Uploading "${objectKey}" (${formattedSize}) to bucket "${config.bucketName}"...`);
 
       const command = new PutObjectCommand({
-        Bucket: B2_BUCKET_NAME,
+        Bucket: config.bucketName,
         Key: objectKey,
         Body: buffer,
         ContentType: mimetype,
@@ -156,11 +163,11 @@ export async function uploadToStorage({ buffer, originalname, mimetype, size, ca
 
       // Construct public or direct B2 retrieval URL
       let fileUrl = '';
-      if (B2_PUBLIC_URL) {
-        fileUrl = `${B2_PUBLIC_URL.replace(/\/$/, '')}/${objectKey}`;
+      if (config.publicUrl) {
+        fileUrl = `${config.publicUrl.replace(/\/$/, '')}/${objectKey}`;
       } else {
-        const endpointClean = B2_ENDPOINT.startsWith('http') ? B2_ENDPOINT : `https://${B2_ENDPOINT}`;
-        fileUrl = `${endpointClean}/${B2_BUCKET_NAME}/${objectKey}`;
+        const endpointClean = config.endpoint.startsWith('http') ? config.endpoint : `https://${config.endpoint}`;
+        fileUrl = `${endpointClean}/${config.bucketName}/${objectKey}`;
       }
 
       console.log(`[Cloudflare B2] ✓ Upload complete: ${fileUrl}`);
@@ -213,9 +220,10 @@ export async function getSecureMediaUrl(objectKey, expiresIn = 3600) {
 
   const client = getS3Client();
   if (client && isB2Configured()) {
+    const config = getB2Config();
     try {
       const command = new GetObjectCommand({
-        Bucket: B2_BUCKET_NAME,
+        Bucket: config.bucketName,
         Key: objectKey
       });
       return await getSignedUrl(client, command, { expiresIn });
@@ -250,10 +258,11 @@ export async function deleteFromStorage(objectKey) {
 
   const client = getS3Client();
   if (client && isB2Configured()) {
+    const config = getB2Config();
     try {
-      console.log(`[Cloudflare B2] Deleting object "${objectKey}" from bucket "${B2_BUCKET_NAME}"...`);
+      console.log(`[Cloudflare B2] Deleting object "${objectKey}" from bucket "${config.bucketName}"...`);
       const command = new DeleteObjectCommand({
-        Bucket: B2_BUCKET_NAME,
+        Bucket: config.bucketName,
         Key: objectKey
       });
       await client.send(command);
@@ -276,8 +285,9 @@ export async function streamMediaFromB2(objectKey, range) {
     return null;
   }
 
+  const config = getB2Config();
   const params = {
-    Bucket: B2_BUCKET_NAME,
+    Bucket: config.bucketName,
     Key: objectKey
   };
 

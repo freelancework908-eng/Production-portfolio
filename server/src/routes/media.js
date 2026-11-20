@@ -9,6 +9,7 @@ import {
   deleteFromStorage,
   streamMediaFromB2,
   isB2Configured,
+  getB2Config,
   validateMediaFile
 } from '../storage/b2.js';
 
@@ -34,11 +35,12 @@ router.get('/', async (req, res) => {
 
 // GET /api/media/status (Admin) - Inspect B2 connectivity
 router.get('/status', authMiddleware, (req, res) => {
+  const config = getB2Config();
   res.json({
     b2Configured: isB2Configured(),
-    bucket: process.env.B2_BUCKET_NAME || 'Not configured',
-    endpoint: process.env.B2_ENDPOINT || 'https://s3.us-east-005.backblazeb2.com',
-    region: process.env.B2_REGION || 'us-east-005',
+    bucket: config.bucketName || 'Not configured',
+    endpoint: config.endpoint || 'https://s3.us-east-005.backblazeb2.com',
+    region: config.region || 'us-east-005',
     storageMode: isB2Configured() ? 'CLOUDFLARE_B2' : 'LOCAL_FALLBACK'
   });
 });
