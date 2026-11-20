@@ -41,6 +41,7 @@ router.get('/status', authMiddleware, (req, res) => {
     bucket: config.bucketName || 'Not configured',
     endpoint: config.endpoint || 'https://s3.us-east-005.backblazeb2.com',
     region: config.region || 'us-east-005',
+    prefix: process.env.B2_PREFIX || null,
     storageMode: isB2Configured() ? 'CLOUDFLARE_B2' : 'LOCAL_FALLBACK'
   });
 });

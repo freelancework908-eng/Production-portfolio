@@ -120,7 +120,9 @@ export function generateObjectKey(originalName, category = 'general', division =
   const cleanDivision = (division || 'general').toLowerCase();
   const cleanCategory = (category || 'media').toLowerCase().replace(/[^a-z0-9_-]/g, '-');
 
-  return `${cleanDivision}/${cleanCategory}/${timestamp}-${randomSuffix}-${base}${ext}`;
+  const prefix = (process.env.B2_PREFIX || '').trim().replace(/^\/+/, '').replace(/\/+$/, '');
+  const key = `${cleanDivision}/${cleanCategory}/${timestamp}-${randomSuffix}-${base}${ext}`;
+  return prefix ? `${prefix}/${key}` : key;
 }
 
 /**
